@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 type ServiceInfo struct {
@@ -16,8 +17,8 @@ type ServiceInfo struct {
 }
 
 type ServiceDiscovery struct {
-	Name string
-	Uri string
+	Name             string
+	Uri              string
 	DependenciesUris []string
 }
 
@@ -40,14 +41,13 @@ func Discover(root string, discoverers []IDiscoverer) ([]ServiceInfo, error) {
 
 		discoveries = append(discoveries, discovered...)
 	}
-	
 
 	infos := connect(discoveries)
 	return infos, nil
 }
 
 func connect(discoveries []ServiceDiscovery) []ServiceInfo {
-	portInfoMap := map[int]ServiceInfo{}
+	portInfoMap := map[int]*ServiceInfo{}
 	portDepMap := map[int][]int{}
 	for _, discovery := range discoveries {
 		port, err := extractPort(discovery.Uri)
@@ -56,12 +56,12 @@ func connect(discoveries []ServiceDiscovery) []ServiceInfo {
 			continue
 		}
 
-		info := ServiceInfo {
-			Name:  discovery.Name,
+		info := ServiceInfo{
+			Name: discovery.Name,
 			Port: port,
 		}
 
-		portInfoMap[port] = info
+		portInfoMap[port] = &info
 
 		portDepMap[port] = []int{}
 		for _, depUri := range discovery.DependenciesUris {
@@ -74,16 +74,23 @@ func connect(discoveries []ServiceDiscovery) []ServiceInfo {
 		}
 	}
 
-	for _, info := range portInfoMap {
-		depPorts := portDepMap[info.Port]
+	for port := range portInfoMap {
+		depPorts := portDepMap[port]
 		for _, depPort := range depPorts {
-			info.Dependencies = append(info.Dependencies, portInfoMap[depPort])
+			if port == depPort {
+				continue
+			}
+
+			dep, exist := portInfoMap[depPort]
+			if exist {
+				portInfoMap[port].Dependencies = append(portInfoMap[port].Dependencies, *dep)
+			}
 		}
 	}
 
 	infos := []ServiceInfo{}
 	for _, info := range portInfoMap {
-		infos = append(infos, info)
+		infos = append(infos, *info)
 	}
 
 	return infos
@@ -101,7 +108,7 @@ func discover(root string, discoverer IDiscoverer) ([]ServiceDiscovery, error) {
 		}
 
 		if !discoverer.Test(path) {
-			return nil;
+			return nil
 		}
 
 		discovered, err := discoverer.Discover(path)
@@ -121,8 +128,12 @@ func discover(root string, discoverer IDiscoverer) ([]ServiceDiscovery, error) {
 	return services, nil
 }
 
-func extractPort(serviceUrl string) (int, error) {
-	uri, err := url.ParseRequestURI(serviceUrl)
+func extractPort(s string) (int, error) {
+	if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
+		s = "https://" + s
+	}
+
+	uri, err := url.ParseRequestURI(s)
 	if err != nil {
 		return 0, err
 	}
@@ -135,7 +146,7 @@ func extractPort(serviceUrl string) (int, error) {
 	intPort, err := strconv.Atoi(port)
 	if err != nil {
 		return 0, err
-	} 
+	}
 
 	return intPort, nil
 }

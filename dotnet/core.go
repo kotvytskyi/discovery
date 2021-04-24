@@ -1,4 +1,4 @@
-package discovery
+package dotnet
 
 import (
 	"bytes"
@@ -6,12 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
-	"regexp"
-	"strings"
 
-	discovery "github.com/kotvytskyi/discovery/core"
+	"github.com/kotvytskyi/discovery"
 )
 
 type CoreDiscoverer struct{}
@@ -21,19 +18,31 @@ func (discoverer CoreDiscoverer) Test(root string) bool {
 		root,
 		"Properties",
 		"launchSettings.json")
-		
-	_, err := os.Stat(settingsPath)
-	return err == nil
+
+	if _, err := os.Stat(settingsPath); err != nil {
+		return false
+	}
+
+	startupPath := filepath.Join(
+		root,
+		"Startup.cs",
+	)
+
+	if _, err := os.Stat(startupPath); err != nil {
+		return false
+	}
+
+	return true
 }
 
 func (discoverer CoreDiscoverer) Skip(root string) bool {
-	folders := map[string]bool {
-		"tests":true,
-		"bin":true,
-		"obj":true,
+	folders := map[string]bool{
+		"tests": true,
+		"bin":   true,
+		"obj":   true,
 	}
 
-	return folders[path.Base(root)]
+	return folders[filepath.Base(root)]
 }
 
 func (discoverer CoreDiscoverer) Discover(servicePath string) (discovery.ServiceDiscovery, error) {
@@ -42,15 +51,15 @@ func (discoverer CoreDiscoverer) Discover(servicePath string) (discovery.Service
 		return discovery.ServiceDiscovery{}, err
 	}
 
-	depsUris, err := parseDependenciesUrls(servicePath)
+	depsUris, err := parseCoreDependenciesUrls(servicePath)
 	if err != nil {
 		return discovery.ServiceDiscovery{}, err
 	}
 
-	return discovery.ServiceDiscovery {
-		Uri: uri,
+	return discovery.ServiceDiscovery{
+		Uri:              uri,
 		DependenciesUris: depsUris,
-		Name: path.Base(servicePath),
+		Name:             filepath.Base(servicePath),
 	}, nil
 }
 
@@ -78,29 +87,20 @@ func parseServiceUrl(root string) (string, error) {
 	return launchSettings.IISSettings.IISExpress.ApplicationUrl, nil
 }
 
-func parseDependenciesUrls(servicePath string) ([]string, error) {
+func parseCoreDependenciesUrls(servicePath string) ([]string, error) {
 	file, err := openAppSettingsFile(servicePath)
-	if (err != nil) {
+	if err != nil {
 		return nil, err
 	}
 
 	defer file.Close()
 
 	jsonBytes, err := ioutil.ReadAll(file)
-    if err != nil {
+	if err != nil {
 		return nil, err
 	}
 
-	re := regexp.MustCompile(`(http(s)?://)?localhost.*"`)
-	matches := re.FindAllString(string(jsonBytes), -1)
-
-	var result []string = []string{}
-	for _, match := range matches {
-		trimmed := strings.Trim(match, `"`)
-		result = append(result, trimmed)
-	}
-
-	return result, nil
+	return discovery.ParseURIs(string(jsonBytes)), nil
 }
 
 func openAppSettingsFile(servicePath string) (*os.File, error) {
@@ -130,5 +130,5 @@ type IISSettings struct {
 }
 
 type IISExpress struct {
-	ApplicationUrl string `json:"applicationUrl"` 
+	ApplicationUrl string `json:"applicationUrl"`
 }
