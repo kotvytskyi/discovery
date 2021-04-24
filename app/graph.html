@@ -1,0 +1,78 @@
+<!DOCTYPE HTML PUBLIC
+    "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+  <head>
+    <title>Links Network demo</title>
+
+    <style>
+      body {font: 10pt arial;}
+    </style>
+
+    <script type="text/javascript" src="http://www.google.com/jsapi"></script>
+    <script type="text/javascript" src="./network-min.js"></script>
+    <script type="text/javascript" src="./services.js"></script>
+
+    <script type="text/javascript">
+      google.load("visualization", "1");
+
+      // Set callback to run when API is loaded
+      google.setOnLoadCallback(drawVisualization);
+
+      // Called when the Visualization API is loaded.
+      function drawVisualization() {
+        // Create a datatable for the nodes.
+        var nodesTable = new google.visualization.DataTable();
+        nodesTable.addColumn('number', 'id');
+        nodesTable.addColumn('string', 'text');
+        nodesTable.addColumn('number', 'value');
+        nodesTable.addColumn('string', 'image');
+        nodesTable.addColumn('string', 'style');
+
+
+        data.nodes.forEach(node => {
+            nodesTable.addRow([
+                parseInt(node.port),
+                `${node.name}:${node.port}`,
+                node.value > 0 ? node.value : 1,
+                `content/vm.png`,
+                "image"]);
+        });
+
+        var linksTable = new google.visualization.DataTable();
+        linksTable.addColumn('number', 'from');
+        linksTable.addColumn('number', 'to');
+
+
+        data.links.forEach(link => {
+            linksTable.addRow([parseInt(link.from), parseInt(link.to)]);
+        });
+
+        // specify options
+        var options = {
+          width:  "100%",
+          height: "800px",
+          stabilize: true, // do not stabilize before displaying
+          nodes: {
+              'fontSize': 12,
+              'fontFace': 'times'
+          },
+          links: {
+              'width': 1,
+              'length': 200,
+              'style': 'moving-arrows'
+          }
+        };
+
+        // Instantiate our network object.
+        var network = new links.Network(document.getElementById('mynetwork'));
+
+        // Draw our network with the created data and options
+        network.draw(nodesTable, linksTable, options);
+      }
+   </script>
+  </head>
+
+  <body>
+    <div id="mynetwork"></div>
+  </body>
+</html>
